@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการสต็อกและเบิกอุปกรณ์หน้างาน (Google Sheets DB)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Sarabun', sans-serif; } </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <header class="mb-8 flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">📡 ระบบจัดการสต็อก & เบิกอุปกรณ์หน้างาน (Real-time DB)</h1>
+                <p class="text-sm text-gray-500 mt-1">เชื่อมต่อฐานข้อมูล Google Sheets ถาวร พร้อมบันทึกประวัติย้อนหลัง</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex gap-2">
+                <button onclick="switchTab('inventory')" id="btn-inventory" class="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium shadow-sm transition">📦 จัดการสต็อก</button>
+                <button onclick="switchTab('checkout')" id="btn-checkout" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition">🚀 เช็คเอาท์ & ประวัติ</button>
+            </div>
+        </header>
+
+        <!-- Tab 1: จัดการสต็อก -->
+        <div id="tab-inventory" class="space-y-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h2 class="text-lg font-bold mb-4 text-gray-800">➕ เพิ่มอุปกรณ์ใหม่เข้าสต็อก</h2>
+                <form id="addItemForm" onsubmit="addItem(event)" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <input type="text" id="itemCode" placeholder="รหัสอุปกรณ์ (เช่น T001)" required class="px-4 py-2 border rounded-xl text-sm">
+                    <input type="text" id="itemName" placeholder="ชื่ออุปกรณ์" required class="px-4 py-2 border rounded-xl text-sm">
+                    <select id="itemCategory" class="px-4 py-2 border rounded-xl text-sm">
+                        <option value="1">1. อุปกรณ์ทั่วไป (ยืม-คืน)</option>
+                        <option value="2">2. อุปกรณ์สิ้นเปลือง/สายอากาศ (ตัดสต็อก)</option>
+                        <option value="3">3. เครื่องมือวัดค่า (ยืม-คืน)</option>
+                    </select>
+                    <input type="number" id="itemQty" placeholder="จำนวนเริ่มต้น" min="1" required class="px-4 py-2 border rounded-xl text-sm">
+                    <button type="submit" id="addBtn" class="bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition py-2">บันทึกเพิ่มอุปกรณ์</button>
+                </form>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">📊 รายการอุปกรณ์ทั้งหมดในสต็อก</h2>
+                    <button onclick="loadData()" class="text-xs bg-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-200">🔄 รีเฟรชข้อมูล</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b text-sm text-gray-500 bg-gray-50">
+                                <th class="p-3">รหัส</th>
+                                <th class="p-3">ชื่ออุปกรณ์</th>
+                                <th class="p-3">หมวดหมู่</th>
+                                <th class="p-3 text-center">คงเหลือ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable" class="text-sm">
+                            <tr><td colspan="4" class="p-4 text-center text-gray-400">กำลังโหลดข้อมูล...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: เช็คเอาท์และประวัติ -->
+        <div id="tab-checkout" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- ฟอร์มเบิก -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-bold mb-4 text-gray-800">🚀 ฟอร์มเบิกอุปกรณ์ก่อนออกหน้างาน</h2>
+                    <form id="checkoutForm" onsubmit="checkoutItem(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">ชื่อผู้เบิก / ทีมงาน</label>
+                            <input type="text" id="techName" placeholder="ระบุชื่อช่าง" required class="w-full px-4 py-2 border rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">เลือกอุปกรณ์</label>
+                            <select id="checkoutItemSelect" class="w-full px-4 py-2 border rounded-xl text-sm"></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">จำนวนที่เบิก</label>
+                            <input type="number" id="checkoutQty" placeholder="ระบุจำนวน" min="1" required class="w-full px-4 py-2 border rounded-xl text-sm">
+                        </div>
+                        <button type="submit" id="checkoutBtn" class="w-full bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition py-2.5">ยืนยันการเบิกอุปกรณ์</button>
+                    </form>
+                </div>
+
+                <!-- สรุปสถานะการเบิก-คืน -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-bold mb-4 text-gray-800">📋 ประวัติการเบิกอุปกรณ์ (รอคืน / ตัดสต็อกแล้ว)</h2>
+                    <div class="overflow-x-auto max-h-96">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b text-sm text-gray-500 bg-gray-50 sticky top-0">
+                                    <th class="p-3">ผู้เบิก</th>
+                                    <th class="p-3">อุปกรณ์</th>
+                                    <th class="p-3 text-center">จน.</th>
+                                    <th class="p-3 text-center">สถานะ / การจัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactionTable" class="text-sm">
+                                <tr><td colspan="4" class="p-4 text-center text-gray-400">กำลังโหลดข้อมูล...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 👉 นำ URL ของ Web App ที่ได้จาก Google Apps Script มาวางแทนที่เครื่องหมายคำพูดด้านล่าง
+        const API_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL';
+
+        let inventoryData = [];
+        let transactionData = [];
+
+        const categoryNames = {
+            '1': 'อุปกรณ์ทั่วไป (ยืม-คืน)',
+            '2': 'อุปกรณ์สิ้นเปลือง (ตัดสต็อก)',
+            '3': 'เครื่องมือวัดค่า (ยืม-คืน)'
+        };
+
+        function switchTab(tab) {
+            if (tab === 'inventory') {
+                document.getElementById('tab-inventory').classList.remove('hidden');
+                document.getElementById('tab-checkout').classList.add('hidden');
+                document.getElementById('btn-inventory').className = "px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium shadow-sm transition";
+                document.getElementById('btn-checkout').className = "px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition";
+            } else {
+                document.getElementById('tab-inventory').classList.add('hidden');
+                document.getElementById('tab-checkout').classList.remove('hidden');
+                document.getElementById('btn-checkout').className = "px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium shadow-sm transition";
+                document.getElementById('btn-inventory').className = "px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition";
+                loadTransactions();
+            }
+            loadData();
+        }
+
+        async function loadData() {
+            try {
+                const res = await fetch(`${API_URL}?action=getInventory`);
+                inventoryData = await res.json();
+                renderInventory();
+                updateCheckoutSelect();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function loadTransactions() {
+            try {
+                const res = await fetch(`${API_URL}?action=getTransactions`);
+                transactionData = await res.json();
+                renderTransactions();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function renderInventory() {
+            const tbody = document.getElementById('inventoryTable');
+            tbody.innerHTML = '';
+            if (inventoryData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">ไม่พบข้อมูลในสต็อก</td></tr>`;
+                return;
+            }
+            inventoryData.forEach(item => {
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-medium">${item.code}</td>
+                        <td class="p-3">${item.name}</td>
+                        <td class="p-3"><span class="px-2.5 py-1 rounded-full text-xs font-medium ${item.category == '2' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}">${categoryNames[item.category] || 'อื่นๆ'}</span></td>
+                        <td class="p-3 text-center font-bold text-blue-600">${item.qty}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function updateCheckoutSelect() {
+            const select = document.getElementById('checkoutItemSelect');
+            select.innerHTML = '';
+            inventoryData.forEach(item => {
+                if(item.qty > 0) {
+                    select.innerHTML += `<option value="${item.code}">${item.name} (คงเหลือ: ${item.qty})</option>`;
+                }
+            });
+        }
+
+        async function addItem(e) {
+            e.preventDefault();
+            const btn = document.getElementById('addBtn');
+            btn.disabled = true;
+            btn.innerText = 'กำลังบันทึก...';
+
+            const payload = {
+                action: 'addItem',
+                code: document.getElementById('itemCode').value,
+                name: document.getElementById('itemName').value,
+                category: document.getElementById('itemCategory').value,
+                qty: parseInt(document.getElementById('itemQty').value)
+            };
+
+            await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+            document.getElementById('addItemForm').reset();
+            btn.disabled = false;
+            btn.innerText = 'บันทึกเพิ่มอุปกรณ์';
+            loadData();
+            alert('เพิ่มอุปกรณ์สำเร็จ!');
+        }
+
+        async function checkoutItem(e) {
+            e.preventDefault();
+            const btn = document.getElementById('checkoutBtn');
+            btn.disabled = true;
+            btn.innerText = 'กำลังทำรายการ...';
+
+            const itemCode = document.getElementById('checkoutItemSelect').value;
+            const selectedItem = inventoryData.find(i => i.code === itemCode);
+
+            const payload = {
+                action: 'checkout',
+                techName: document.getElementById('techName').value,
+                itemCode: itemCode,
+                itemName: selectedItem ? selectedItem.name : '',
+                category: selectedItem ? selectedItem.category : '1',
+                qty: parseInt(document.getElementById('checkoutQty').value)
+            };
+
+            const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+            const result = await res.json();
+            
+            btn.disabled = false;
+            btn.innerText = 'ยืนยันการเบิกอุปกรณ์';
+
+            if (result.status === 'success') {
+                document.getElementById('checkoutForm').reset();
+                loadData();
+                loadTransactions();
+                alert('บันทึกการเบิกสำเร็จ!');
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + result.message);
+            }
+        }
+
+        async function returnItem(txId) {
+            if (!confirm('ยืนยันการคืนอุปกรณ์นี้เข้าสต็อก?')) return;
+
+            const payload = { action: 'returnItem', txId: txId };
+            await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+            loadData();
+            loadTransactions();
+            alert('คืนอุปกรณ์เข้าสต็อกเรียบร้อยแล้ว');
+        }
+
+        function renderTransactions() {
+            const tbody = document.getElementById('transactionTable');
+            tbody.innerHTML = '';
+            if (transactionData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">ยังไม่มีประวัติการเบิกใช้งาน</td></tr>`;
+                return;
+            }
+            // เรียงลำดับจากใหม่ไปเก่า
+            transactionData.slice().reverse().forEach(tx => {
+                let statusBadge = '';
+                if (tx.status === 'กำลังใช้งาน') {
+                    statusBadge = `<button onclick="returnItem('${tx.id}')" class="px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs hover:bg-amber-600 transition">🔄 กดคืนอุปกรณ์</button>`;
+                } else if (tx.status === 'คืนแล้ว') {
+                    statusBadge = `<span class="px-2 py-1 bg-green-50 text-green-600 rounded-lg text-xs font-medium">✅ คืนแล้ว</span>`;
+                } else {
+                    statusBadge = `<span class="px-2 py-1 bg-orange-50 text-orange-600 rounded-lg text-xs font-medium">🔴 ตัดสต็อกถาวร</span>`;
+                }
+
+                tbody.innerHTML += `
+                    <tr class="border-b">
+                        <td class="p-3 text-xs"><strong class="text-gray-900">${tx.techName}</strong><br><span class="text-gray-400">${tx.timestamp}</span></td>
+                        <td class="p-3 text-xs">${tx.itemName}</td>
+                        <td class="p-3 text-center text-xs font-bold">${tx.qty}</td>
+                        <td class="p-3 text-center">${statusBadge}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // โหลดข้อมูลเริ่มต้นเมื่อเปิดหน้าเว็บ
+        loadData();
+    </script>
+</body>
+</html>
