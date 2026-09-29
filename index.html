@@ -3,29 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบจัดการสต็อกและเบิกอุปกรณ์หน้างาน (Google Sheets DB)</title>
+    <title>ระบบจัดการสต็อกและเบิกอุปกรณ์หน้างาน (Role-based)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style> body { font-family: 'Sarabun', sans-serif; } </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-    <div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Login Modal / Screen -->
+    <div id="loginScreen" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 px-4">
+        <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-100">
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900">🔐 เข้าสู่ระบบ</h2>
+                <p class="text-sm text-gray-500 mt-1">ระบบจัดการสต็อกและเบิกอุปกรณ์หน้างาน</p>
+            </div>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+                    <input type="text" id="loginUser" required class="w-full px-4 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">รหัสผ่าน (Password)</label>
+                    <input type="password" id="loginPass" required class="w-full px-4 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <button type="submit" id="loginBtn" class="w-full bg-blue-600 text-white rounded-xl py-2.5 font-medium hover:bg-blue-700 transition">เข้าสู่ระบบ</button>
+            </form>
+            <div class="mt-4 text-xs text-gray-400 text-center">
+                *ทดลอง Admin: admin / 1234<br>*ทดลองช่าง: tech01 / 1234
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application (Hidden until login) -->
+    <div id="mainApp" class="max-w-7xl mx-auto px-4 py-8 hidden">
         <header class="mb-8 flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">📡 ระบบจัดการสต็อก & เบิกอุปกรณ์หน้างาน (Real-time DB)</h1>
-                <p class="text-sm text-gray-500 mt-1">เชื่อมต่อฐานข้อมูล Google Sheets ถาวร พร้อมบันทึกประวัติย้อนหลัง</p>
+                <h1 class="text-2xl font-bold text-gray-900">📡 ระบบจัดการสต็อก & เบิกอุปกรณ์หน้างาน</h1>
+                <p class="text-sm text-gray-500 mt-1">ผู้ใช้งาน: <span id="userNameDisplay" class="font-semibold text-blue-600"></span> (<span id="userRoleDisplay" class="bg-gray-100 px-2 py-0.5 rounded text-xs"></span>)</p>
             </div>
-            <div class="mt-4 md:mt-0 flex gap-2">
+            <div class="mt-4 md:mt-0 flex gap-2 items-center">
                 <button onclick="switchTab('inventory')" id="btn-inventory" class="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium shadow-sm transition">📦 จัดการสต็อก</button>
                 <button onclick="switchTab('checkout')" id="btn-checkout" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition">🚀 เช็คเอาท์ & ประวัติ</button>
+                <button onclick="logout()" class="px-3 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100 transition ml-2">🚪 ออกจากระบบ</button>
             </div>
         </header>
 
         <!-- Tab 1: จัดการสต็อก -->
         <div id="tab-inventory" class="space-y-6">
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 class="text-lg font-bold mb-4 text-gray-800">➕ เพิ่มอุปกรณ์ใหม่เข้าสต็อก</h2>
+            <!-- ฟอร์มเพิ่มอุปกรณ์ (แสดงเฉพาะ Admin เท่านั้น) -->
+            <div id="adminAddCard" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hidden">
+                <h2 class="text-lg font-bold mb-4 text-gray-800">➕ เพิ่มอุปกรณ์ใหม่เข้าสต็อก <span class="text-xs bg-red-50 text-red-600 px-2 py-1 rounded-lg ml-2 font-normal">เฉพาะ Admin</span></h2>
                 <form id="addItemForm" onsubmit="addItem(event)" class="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <input type="text" id="itemCode" placeholder="รหัสอุปกรณ์ (เช่น T001)" required class="px-4 py-2 border rounded-xl text-sm">
                     <input type="text" id="itemName" placeholder="ชื่ออุปกรณ์" required class="px-4 py-2 border rounded-xl text-sm">
@@ -71,7 +98,7 @@
                     <form id="checkoutForm" onsubmit="checkoutItem(event)" class="space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">ชื่อผู้เบิก / ทีมงาน</label>
-                            <input type="text" id="techName" placeholder="ระบุชื่อช่าง" required class="w-full px-4 py-2 border rounded-xl text-sm">
+                            <input type="text" id="techName" readonly class="w-full px-4 py-2 border rounded-xl text-sm bg-gray-100 text-gray-600 cursor-not-allowed">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">เลือกอุปกรณ์</label>
@@ -87,7 +114,7 @@
 
                 <!-- สรุปสถานะการเบิก-คืน -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h2 class="text-lg font-bold mb-4 text-gray-800">📋 ประวัติการเบิกอุปกรณ์ (รอคืน / ตัดสต็อกแล้ว)</h2>
+                    <h2 class="text-lg font-bold mb-4 text-gray-800">📋 ประวัติการเบิกอุปกรณ์</h2>
                     <div class="overflow-x-auto max-h-96">
                         <table class="w-full text-left border-collapse">
                             <thead>
@@ -109,9 +136,9 @@
     </div>
 
     <script>
-        // 👉 นำ URL ของ Web App ที่ได้จาก Google Apps Script มาวางแทนที่เครื่องหมายคำพูดด้านล่าง
-        const API_URL = 'https://script.google.com/macros/s/AKfycbwWkn4-pw3jaUM-dg3xYp69GF5yh_Y15rsYmCDzGkTeO5bjoiaCWHF81x_VJzDY1QJL/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbySBrA3rPZe7RP51BvUMpo5Qck7HR783bF7YiRQO5ThFbmAjsjdglZ1_oIQwvvZWvrS/exec';
 
+        let currentUser = null;
         let inventoryData = [];
         let transactionData = [];
 
@@ -120,6 +147,57 @@
             '2': 'อุปกรณ์สิ้นเปลือง (ตัดสต็อก)',
             '3': 'เครื่องมือวัดค่า (ยืม-คืน)'
         };
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = true;
+            btn.innerText = 'กำลังตรวจสอบ...';
+
+            const username = document.getElementById('loginUser').value;
+            const password = document.getElementById('loginPass').value;
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'login', username, password })
+                });
+                const result = await res.json();
+
+                if (result.status === 'success') {
+                    currentUser = { username, role: result.role, name: result.name };
+                    document.getElementById('loginScreen').classList.add('hidden');
+                    document.getElementById('mainApp').classList.remove('hidden');
+                    
+                    // แสดงชื่อและสิทธิ์
+                    document.getElementById('userNameDisplay').innerText = currentUser.name;
+                    document.getElementById('userRoleDisplay').innerText = currentUser.role === 'admin' ? 'Admin' : 'ช่างทั่วไป';
+                    document.getElementById('techName').value = currentUser.name;
+
+                    // ถ้าเป็น Admin ให้แสดงฟอร์มเพิ่มอุปกรณ์
+                    if (currentUser.role === 'admin') {
+                        document.getElementById('adminAddCard').classList.remove('hidden');
+                    }
+
+                    loadData();
+                } else {
+                    alert(result.message);
+                }
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'เข้าสู่ระบบ';
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('mainApp').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('loginUser').value = '';
+            document.getElementById('loginPass').value = '';
+        }
 
         function switchTab(tab) {
             if (tab === 'inventory') {
@@ -143,9 +221,7 @@
                 inventoryData = await res.json();
                 renderInventory();
                 updateCheckoutSelect();
-            } catch (err) {
-                console.error(err);
-            }
+            } catch (err) { console.error(err); }
         }
 
         async function loadTransactions() {
@@ -153,9 +229,7 @@
                 const res = await fetch(`${API_URL}?action=getTransactions`);
                 transactionData = await res.json();
                 renderTransactions();
-            } catch (err) {
-                console.error(err);
-            }
+            } catch (err) { console.error(err); }
         }
 
         function renderInventory() {
@@ -195,18 +269,26 @@
 
             const payload = {
                 action: 'addItem',
+                role: currentUser.role,
                 code: document.getElementById('itemCode').value,
                 name: document.getElementById('itemName').value,
                 category: document.getElementById('itemCategory').value,
                 qty: parseInt(document.getElementById('itemQty').value)
             };
 
-            await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
-            document.getElementById('addItemForm').reset();
+            const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+            const result = await res.json();
+            
             btn.disabled = false;
             btn.innerText = 'บันทึกเพิ่มอุปกรณ์';
-            loadData();
-            alert('เพิ่มอุปกรณ์สำเร็จ!');
+
+            if(result.status === 'success') {
+                document.getElementById('addItemForm').reset();
+                loadData();
+                alert('เพิ่มอุปกรณ์สำเร็จ!');
+            } else {
+                alert(result.message);
+            }
         }
 
         async function checkoutItem(e) {
@@ -220,7 +302,7 @@
 
             const payload = {
                 action: 'checkout',
-                techName: document.getElementById('techName').value,
+                techName: currentUser.name,
                 itemCode: itemCode,
                 itemName: selectedItem ? selectedItem.name : '',
                 category: selectedItem ? selectedItem.category : '1',
@@ -255,12 +337,12 @@
 
         function renderTransactions() {
             const tbody = document.getElementById('transactionTable');
+            tbody.innerHTML =;
             tbody.innerHTML = '';
             if (transactionData.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">ยังไม่มีประวัติการเบิกใช้งาน</td></tr>`;
                 return;
             }
-            // เรียงลำดับจากใหม่ไปเก่า
             transactionData.slice().reverse().forEach(tx => {
                 let statusBadge = '';
                 if (tx.status === 'กำลังใช้งาน') {
@@ -281,9 +363,6 @@
                 `;
             });
         }
-
-        // โหลดข้อมูลเริ่มต้นเมื่อเปิดหน้าเว็บ
-        loadData();
     </script>
 </body>
 </html>
