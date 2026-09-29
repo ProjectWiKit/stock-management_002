@@ -169,12 +169,10 @@
                     document.getElementById('loginScreen').classList.add('hidden');
                     document.getElementById('mainApp').classList.remove('hidden');
                     
-                    // แสดงชื่อและสิทธิ์
                     document.getElementById('userNameDisplay').innerText = currentUser.name;
                     document.getElementById('userRoleDisplay').innerText = currentUser.role === 'admin' ? 'Admin' : 'ช่างทั่วไป';
                     document.getElementById('techName').value = currentUser.name;
 
-                    // ถ้าเป็น Admin ให้แสดงฟอร์มเพิ่มอุปกรณ์
                     if (currentUser.role === 'admin') {
                         document.getElementById('adminAddCard').classList.remove('hidden');
                     }
@@ -337,7 +335,6 @@
 
         function renderTransactions() {
             const tbody = document.getElementById('transactionTable');
-            tbody.innerHTML =;
             tbody.innerHTML = '';
             if (transactionData.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">ยังไม่มีประวัติการเบิกใช้งาน</td></tr>`;
